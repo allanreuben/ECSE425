@@ -18,7 +18,7 @@ constant SLASH_CHARACTER : std_logic_vector(7 downto 0) := "00101111";
 constant STAR_CHARACTER : std_logic_vector(7 downto 0) := "00101010";
 constant NEW_LINE_CHARACTER : std_logic_vector(7 downto 0) := "00001010";
 
-signal state : std_logic_vector(3 downto 0) := "000";
+signal state : std_logic_vector(2 downto 0) := "000";
 
 begin
 
@@ -75,7 +75,7 @@ begin
                     state <= "100";
                     output <= '1';
                 end if;
-            when "101" or "110" =>
+            when "101" | "110" =>
                 if (input = NEW_LINE_CHARACTER) then
                     state <= "111";
                     output <= '1';
