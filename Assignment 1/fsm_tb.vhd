@@ -135,8 +135,7 @@ BEGIN
 	ASSERT (s_output = '1') REPORT "After no state transition, output should be '1'" SEVERITY ERROR;
 
 	REPORT "Case RESET from state 4 to 0, expected output 0";
-	reset <= "1";
-	s_input <= "01111110"; -- meaningless character
+	s_reset <= "1";
 	WAIT FOR 1 * clk_period;
 	ASSERT (s_output = '0') REPORT "After RESET, output should be '0'" SEVERITY ERROR;
 
@@ -165,7 +164,7 @@ BEGIN
 	WAIT FOR 1 * clk_period;
 	ASSERT (s_output = '0') REPORT "After state transition, output should be '0'" SEVERITY ERROR;
 
-	REPORT "Test suite complete"
+	REPORT "Test suite complete";
 	
 	WAIT;
 END PROCESS stim_process;
