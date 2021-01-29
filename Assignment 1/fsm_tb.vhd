@@ -138,6 +138,7 @@ BEGIN
 	s_reset <= '1';
 	WAIT FOR 1 * clk_period;
 	ASSERT (s_output = '0') REPORT "After RESET, output should be '0'" SEVERITY ERROR;
+	s_reset <= '0';
 
 	REPORT "Case moving from state 0 to 1, expected output 0";
 	s_input <= "00101111"; -- slash character
