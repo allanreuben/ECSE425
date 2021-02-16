@@ -35,9 +35,6 @@ architecture arch of cache is
 	-- Size of tag and offset in bits
 	constant TAG_SIZE: integer := 11;
 	constant OFFSET_SIZE: integer := 2;
-	-- Bit masks for the dirty/clean and valid/invalid flags
-	constant DIRTY_FLAG_MASK: std_logic_vector := "01";
-	constant VALID_FLAG_MASK: std_logic_vector := "10";
 	-- An array type for the data in the cache
 	type cache_data is array(CACHE_SIZE_BYTES-1 downto 0) of std_logic_vector(7 downto 0);
 	-- An array type for the tags in the cache
@@ -45,16 +42,19 @@ architecture arch of cache is
 	-- An array type for the valid(1)/invalid(0) and dirty(1)/clean(0) flags
 	type cache_flags is array(CACHE_SIZE_BLOCKS-1 downto 0) of std_logic_vector(1 downto 0);
 
-	-- Signals used in the process blocks
+	-- Cache structures
 	signal cache_d: cache_data;
 	signal cache_t: cache_tags;
 	signal cache_f: cache_flags;
+	-- Wait request signal
+	signal waitreq_reg: std_logic := '1';
+	signal tag_reg: std_logic_vector(TAG_SIZE-1 downto 0);
 begin
 
-	cache_process: process (clock)
+	cache_proc: process (clock, reset)
 	begin
 		-- Initialize the arrays
-		if (now < 1 ps) then
+		if reset or (now < 1 ps) then
 			for i in 0 to CACHE_SIZE_BYTES-1 loop
 				cache_d(i) <= "00000000";
 			end loop;
@@ -65,6 +65,20 @@ begin
 				cache_f(i) <= "00";
 			end loop;
 		end if;
+
+		-- Main processing block
+		if (rising_edge(clock)) then
+			if (s_read) then
+				tag_reg <= s_addr(14 downto 14-TAG_SIZE+1);
+				-- Check if tag == cache_t(tag mod CACHE_SIZE_BLOCKS)
+			elsif (s_write) then
+				-- Perform write actions
+			else
+				-- Vibe out
+			end if;
+		end if;
+
+		s_waitrequest <= waitreq_reg;
 	end process;
 
 end arch;
