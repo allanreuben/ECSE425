@@ -28,11 +28,12 @@ port(
 end cache;
 
 architecture arch of cache is
-
--- declare signals here
-
+	-- Storage size in bytes
+	constant CACHE_SIZE: integer := 512;
+	-- The actual cache data structure
+	type cache_mem is array(CACHE_SIZE-1 downto 0) of std_logic_vector(7 downto 0);
 begin
 
--- make circuits here
+	
 
 end arch;
