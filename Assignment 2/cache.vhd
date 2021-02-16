@@ -29,12 +29,12 @@ end cache;
 
 architecture arch of cache is
 	-- Size of cache in bytes and blocks
-	constant CACHE_SIZE_BYTES: integer := 512;
-	constant BYTES_PER_BLOCK: integer := 16;
-	constant CACHE_SIZE_BLOCKS: integer := CACHE_SIZE_BYTES / BYTES_PER_BLOCK;
+	constant CACHE_SIZE_BYTES: natural := 512;
+	constant BYTES_PER_BLOCK: natural := 16;
+	constant CACHE_SIZE_BLOCKS: natural := CACHE_SIZE_BYTES / BYTES_PER_BLOCK;
 	-- Size of tag and offset in bits
-	constant TAG_SIZE: integer := 11;
-	constant OFFSET_SIZE: integer := 2;
+	constant TAG_SIZE: natural := 11;
+	constant OFFSET_SIZE: natural := 2;
 	-- An array type for the data in the cache
 	type cache_data is array(CACHE_SIZE_BYTES-1 downto 0) of std_logic_vector(7 downto 0);
 	-- An array type for the tags in the cache
@@ -49,12 +49,14 @@ architecture arch of cache is
 	-- Wait request signal
 	signal waitreq_reg: std_logic := '1';
 	signal tag_reg: std_logic_vector(TAG_SIZE-1 downto 0);
+	-- Variables
+	variable block_idx: natural;
 begin
 
 	cache_proc: process (clock, reset)
 	begin
 		-- Initialize the arrays
-		if reset or (now < 1 ps) then
+		if (reset = '1') or (now < 1 ps) then
 			for i in 0 to CACHE_SIZE_BYTES-1 loop
 				cache_d(i) <= "00000000";
 			end loop;
@@ -64,17 +66,58 @@ begin
 				-- Initialize the tag to invalid and clean
 				cache_f(i) <= "00";
 			end loop;
-		end if;
 
 		-- Main processing block
-		if (rising_edge(clock)) then
+		elsif (rising_edge(clock)) then
 			if (s_read) then
 				tag_reg <= s_addr(14 downto 14-TAG_SIZE+1);
-				-- Check if tag == cache_t(tag mod CACHE_SIZE_BLOCKS)
+				block_idx := to_integer(unsigned(tag_reg)) mod CACHE_SIZE_BLOCKS;
+				-- Check if tag matches
+				if (tag_reg = cache_t(block_idx)) then
+					-- Check if block is valid
+					if (cache_f(block_idx)(1) = '1') then
+						-- Return data found at that address in cache
+					else
+						-- Request the data from the main memory
+					end if;
+				else
+					-- Check if block is dirty
+					if (cache_f(block_idx)(0) = '1') then
+						-- Write back the current block to main memory
+						-- Request the data from the main memory
+						-- Mark the cache block as clean
+					else
+						-- Request the data from the main memory
+					end if;
+				end if;
 			elsif (s_write) then
-				-- Perform write actions
+				tag_reg <= s_addr(14 downto 14-TAG_SIZE+1);
+				block_idx := to_integer(unsigned(tag_reg)) mod CACHE_SIZE_BLOCKS;
+				-- Check if tag matches
+				if (tag_reg = cache_t(block_idx)) then
+					-- Check if block is valid
+					if (cache_f(block_idx)(1) = '1') then
+						-- Write the data into the cache block
+						-- Mark the block as dirty
+					else
+						-- Get the new block from the main memory
+						-- Write the data into the cache block
+						-- Mark the block as dirty
+					end if;
+				else
+					-- Check if block is dirty
+					if (cache_f(block_idx)(0) = '1') then
+						-- Write the old cache block to the main memory
+						-- Get the new block from the main memory
+						-- Write the new data into the cache block
+					else
+						-- Get the new block from the main memory
+						-- Write the new data into the cache blocck
+						-- Mark the block as dirty
+					end if;
+				end if;
 			else
-				-- Vibe out
+				-- Just vibe
 			end if;
 		end if;
 
