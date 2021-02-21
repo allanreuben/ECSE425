@@ -43,7 +43,7 @@ architecture arch of cache is
 	constant TAG_SIZE: natural := ADDRESS_START - TAG_END_BIT + 1;
 	-- Mask for the block address
 	constant BLOCK_ADDR_MASK: unsigned(ADDRESS_START downto 0) := (
-		(ADDRESS_START downto OFFSET_END_BIT + 2) => '1',
+		ADDRESS_START downto OFFSET_END_BIT + 2 => '1',
 		others => '0'
 	);
 
@@ -160,7 +160,7 @@ begin
 							-- We loaded the entire block, so we can return value requested by the CPU
 							c_wordoffset <= 0;
 							cpu_readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
-							if (c_rthenwc) then
+							if (c_rthenwc = '1') then
 								-- Write the new value into the cache
 								cache_d(block_idx*WORDS_PER_BLOCK + offset) <= s_writedata;
 								-- Mark the block as valid and dirty
@@ -176,10 +176,10 @@ begin
 					end if;
 					mem_read <= '0';
 				end if;
-			elsif (s_read) then
-				tag := s_addr(ADDRESS_START downto TAG_END_BIT);
-				block_idx := to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
-				offset := to_integer(unsigned(s_addr(BLOCK_ADDR_END_BIT-1 downto OFFSET_END_BIT)));
+			elsif (s_read = '1') then
+				tag <= s_addr(ADDRESS_START downto TAG_END_BIT);
+				block_idx <= to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
+				offset <= to_integer(unsigned(s_addr(BLOCK_ADDR_END_BIT-1 downto OFFSET_END_BIT)));
 				-- Check if tag matches
 				if (tag = cache_t(block_idx)) then
 					-- Check if block is valid
@@ -217,10 +217,10 @@ begin
 						mem_read <= '1';
 					end if;
 				end if;
-			elsif (s_write) then
-				tag := s_addr(14 downto 14-TAG_SIZE+1);
-				-- block_idx := to_integer(unsigned(tag)) mod CACHE_SIZE_BLOCKS;
-				block_idx := s_addr(14-TAG_SIZE downto 14-(TAG_SIZE + BLOCK_ADDR_SIZE)+1);
+			elsif (s_write = '1') then
+				tag <= s_addr(ADDRESS_START downto TAG_END_BIT);
+				block_idx <= to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
+				offset <= to_integer(unsigned(s_addr(BLOCK_ADDR_END_BIT-1 downto OFFSET_END_BIT)));
 				-- Check if tag matches
 				if (tag = cache_t(block_idx)) then
 					-- Check if block is valid
