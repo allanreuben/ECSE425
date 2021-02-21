@@ -212,7 +212,9 @@ begin
 					-- Check if block is valid
 					if (cache_f(block_idx)(1) = '1') then
 						-- Write the data into the cache block
-						-- Mark the block as dirty
+						cache_d(block_idx*WORDS_PER_BLOCK + offset) <= s_writedata;
+						-- Mark the block as dirty and valid
+						cache_f(block_idx) <= "11";
 					else
 						-- Get the new block from the main memory
 						-- Write the data into the cache block
