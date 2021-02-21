@@ -4,7 +4,7 @@ use ieee.numeric_std.all;
 
 entity cache is
 generic(
-	ram_size : INTEGER := 32768;
+	ram_size : INTEGER := 32768
 );
 port(
 	clock : in std_logic;
@@ -57,11 +57,16 @@ architecture arch of cache is
 	signal readdata: std_logic_vector(31 downto 0); -- The data to be read by the processor
 	signal memread: std_logic := '0'; -- High when reading from main memory
 	signal memwrite: std_logic := '0'; -- High when writing to main memory
+	signal memaddr: integer range 0 to ram_size-1; -- Address in main memory
+	signal mem_byteoffset: integer range 0 to 3 := 0;
+	signal mem_readnextbyte: boolean := false;
+	-- Tag, block address, and offset signals
+	signal tag: std_logic_vector(TAG_SIZE-1 downto 0);
+	signal block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1;
+	signal offset: natural range 0 to WORDS_PER_BLOCK-1;
 begin
 
 	cache_proc: process (clock, reset)
-		variable block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1;
-		variable tag: std_logic_vector(TAG_SIZE-1 downto 0);
 	begin
 		-- Initialize the arrays
 		if (reset = '1') or (now < 1 ps) then
@@ -77,8 +82,27 @@ begin
 
 		-- Main processing block
 		elsif (rising_edge(clock)) then
+			if (mem_readnextbyte) then
+				mem_readnextbyte <= false;
+				memread <= '1';
+			end if;
+			
 			if (waitreq_reg = '0') then
 				waitreq_reg <= '1';
+			elsif (memread = '1') then
+				if (m_waitrequest = '0') then
+					readdata((mem_byteoffset+1)*8 - 1 downto mem_byteoffset*8) <= m_readdata;
+					mem_byteoffset <= mem_byteoffset + 1;
+					if (mem_byteoffset < 4) then
+						-- Still need to read more bytes from memory
+						memaddr <= memaddr + 1;
+						mem_readnextbyte <= true;
+					else
+						-- We have read all the data and can provide it to the CPU
+						waitreq_reg <= '0';
+					end if;
+					memread <= '0';
+				end if;
 			elsif (s_read) then
 				tag := s_addr(ADDRESS_START downto TAG_END_BIT);
 				block_idx := to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
@@ -92,7 +116,9 @@ begin
 						waitreq_reg <= '0';
 					else
 						-- Request the data from the main memory
-
+						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)))
+						mem_byteoffset <= 0;
+						memread <= '1';
 					end if;
 				else
 					-- Check if block is dirty
@@ -139,4 +165,7 @@ begin
 
 	s_waitrequest <= waitreq_reg;
 	s_readdata <= readdata;
+
+	m_read <= memread;
+	m_addr <= memaddr;
 end arch;
