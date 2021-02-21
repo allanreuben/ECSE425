@@ -86,7 +86,7 @@ begin
 				mem_readnextbyte <= false;
 				memread <= '1';
 			end if;
-			
+
 			if (waitreq_reg = '0') then
 				waitreq_reg <= '1';
 			elsif (memread = '1') then
@@ -98,7 +98,10 @@ begin
 						memaddr <= memaddr + 1;
 						mem_readnextbyte <= true;
 					else
-						-- We have read all the data and can provide it to the CPU
+						-- We have read all the data and can store it in the cache and provide it
+						-- to the CPU
+						cache_d(block_idx*WORDS_PER_BLOCK + offset) <= readdata;
+						cache_f(block_idx) <= "11";
 						waitreq_reg <= '0';
 					end if;
 					memread <= '0';
@@ -112,11 +115,11 @@ begin
 					-- Check if block is valid
 					if (cache_f(block_idx)(1) = '1') then
 						-- Return data found at that address in cache
-						readdata <= cache_d(block_idx + offset);
+						readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
 						waitreq_reg <= '0';
 					else
 						-- Request the data from the main memory
-						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)))
+						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)));
 						mem_byteoffset <= 0;
 						memread <= '1';
 					end if;
