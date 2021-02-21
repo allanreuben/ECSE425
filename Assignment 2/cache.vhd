@@ -102,7 +102,7 @@ begin
 			if (mem_writenextbyte = '1') then
 				mem_writenextbyte <= '0';
 				memwrite <= '1';
-			
+			end if;
 			-- Present the read data to the CPU for one clock cycle
 			if (waitreq_reg = '0') then
 				waitreq_reg <= '1';
@@ -155,8 +155,18 @@ begin
 						else
 							-- We loaded the entire block, so we can return value requested by the CPU
 							mem_wordoffset <= 0;
-							cache_f(block_idx) <= "11" -- Block is now clean and valid
-							readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset)
+							readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
+							if (mem_rthenwc) then
+								-- Write the new value into the cache
+								cache_d(block_idx*WORDS_PER_BLOCK + offset) <= s_writedata;
+								-- Mark the block as valid and dirty
+								cache_f(block_idx) <= "11";
+								-- Lower the rthenwc flag
+								mem_rthenwc <= '0';
+							else
+								-- Block is now valid and clean
+								cache_f(block_idx) <= "10";
+							end if;
 							waitreq_reg <= '0';
 						end if;
 					end if;
@@ -192,7 +202,7 @@ begin
 						mem_wordoffset <= 0;
 						memwrite <= '1';
 						-- Request the new block from the main memory
-							-- Taken care of by setting mem_wthenr to true
+							-- Writing to memory always results in a read
 						-- Mark the new cache block as clean
 							-- Taken care of in the read method
 					else
@@ -215,25 +225,41 @@ begin
 						cache_d(block_idx*WORDS_PER_BLOCK + offset) <= s_writedata;
 						-- Mark the block as dirty and valid
 						cache_f(block_idx) <= "11";
+						-- Lower the waitrequest signal
+						waitreq_reg <= '0';
 					else
 						-- Get the new block from the main memory
+						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
+						mem_byteoffset <= 0;
+						mem_wordoffset <= 0;
+						memread <= '1';
 						-- Write the data into the cache block
-						-- Mark the block as dirty
+						mem_rthenwc <= '1'; -- Ensures that the new value is written to the cache
 					end if;
 				else
 					-- Check if block is dirty
 					if (cache_f(block_idx)(0) = '1') then
 						-- Write the old cache block to the main memory
+						memaddr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
+							+ block_idx;
+						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK)(31 downto 24);
+						mem_byteoffset <= 0;
+						mem_wordoffset <= 0;
+						memwrite <= '1';
 						-- Get the new block from the main memory
+							-- Read always happens after write to memory
 						-- Write the new data into the cache block
+						mem_rthenwc <= '1';
 					else
 						-- Get the new block from the main memory
-						-- Write the new data into the cache blocck
-						-- Mark the block as dirty
+						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
+						mem_byteoffset <= 0;
+						mem_wordoffset <= 0;
+						memread <= '1';
+						-- Write the data into the cache block
+						mem_rthenwc <= '1'; -- Ensures that the new value is written to the cache
 					end if;
 				end if;
-			else
-				-- Just vibe
 			end if;
 		end if;
 	end process;
