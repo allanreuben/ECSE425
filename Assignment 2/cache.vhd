@@ -28,6 +28,7 @@ port(
 end cache;
 
 architecture arch of cache is
+	--------------- CONSTANTS ---------------
 	-- Size of cache in bytes and blocks
 	constant CACHE_SIZE_WORDS: natural := 128;
 	constant WORDS_PER_BLOCK: natural := 4;
@@ -46,6 +47,7 @@ architecture arch of cache is
 		others => '0'
 	);
 
+	--------------- TYPE DEFINITIONS ---------------
 	-- An array type for the data in the cache
 	type cache_data is array(CACHE_SIZE_WORDS-1 downto 0) of std_logic_vector(31 downto 0);
 	-- An array type for the tags in the cache
@@ -53,28 +55,30 @@ architecture arch of cache is
 	-- An array type for the valid(1)/invalid(0) and dirty(1)/clean(0) flags
 	type cache_flags is array(CACHE_SIZE_BLOCKS-1 downto 0) of std_logic_vector(1 downto 0);
 
+	--------------- SIGNALS ---------------
 	-- Cache structures
 	signal cache_d: cache_data;
 	signal cache_t: cache_tags;
 	signal cache_f: cache_flags;
-	-- Wait request signal
-	signal waitreq_reg: std_logic := '1';
-	-- Additional signals
-	signal readdata: std_logic_vector(31 downto 0); -- The data to be read by the processor
-	signal mem_readdata: std_logic_vector(31 downto 0); -- The word returned by the main memory
-	signal mem_writedata: std_logic_vector(31 downto 0); -- The word to write to the main memory
-	signal memread: std_logic := '0'; -- High when reading from main memory
-	signal memwrite: std_logic := '0'; -- High when writing to main memory
-	signal memaddr: integer range 0 to ram_size-1; -- Address in main memory
-	signal mem_byteoffset: integer range 0 to 3 := 0;
-	signal mem_wordoffset: integer range 0 to 3 := 0;
-	signal mem_readnextbyte: std_logic := '0';
-	signal mem_writenextbyte: std_logic := '0';
-	signal mem_rthenwc: std_logic := '0'; -- Set high if the cache should read from main memory then write to cache
-	-- Tag, block address, and offset signals
-	signal tag: std_logic_vector(TAG_SIZE-1 downto 0);
-	signal block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1;
-	signal offset: natural range 0 to WORDS_PER_BLOCK-1;
+	-- Registers for outputs to the CPU
+	signal cpu_waitreq: std_logic := '1'; -- Wait request signal being monitored by the CPU
+	signal cpu_readdata: std_logic_vector(31 downto 0); -- The data to be read by the CPU
+	-- Registers for inputs to the main memory
+	signal mem_addr: integer range 0 to ram_size-1; -- Address of target byte in memory
+	signal mem_read: std_logic := '0'; -- High when reading from main memory
+	signal mem_write: std_logic := '0'; -- High when writing to main memory
+	signal mem_writedata: std_logic_vector(7 downto 0); -- The byte to write to the main memory
+	-- Internal signals
+	signal c_readdata: std_logic_vector(31 downto 0); -- Data read from the main memory
+	signal c_byteoffset: integer range 0 to 3 := 0; -- Byte offset relative to current block being processed
+	signal c_wordoffset: integer range 0 to 3 := 0; -- Word offset relative to current block being processed
+	signal c_readnextbyte: std_logic := '0'; -- Set high if another byte should be read from the memory
+	signal c_writenextbyte: std_logic := '0'; -- Set high if another byte should be written to the memory
+	signal c_rthenwc: std_logic := '0'; -- Set high if the cache should read from main memory then write to cache
+	-- Signals for storing parts of the address specified by the CPU
+	signal tag: std_logic_vector(TAG_SIZE-1 downto 0); -- Tag of the address specified by the CPU
+	signal block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1; -- Block index of the address specified by the CPU
+	signal offset: natural range 0 to WORDS_PER_BLOCK-1; -- Offset of the address specified by the CPU
 begin
 
 	cache_proc: process (clock, reset)
@@ -94,83 +98,83 @@ begin
 		-- Main processing block
 		elsif (rising_edge(clock)) then
 			-- Used to trigger the main memory for a new read
-			if (mem_readnextbyte = '1') then
-				mem_readnextbyte <= '0';
-				memread <= '1';
+			if (c_readnextbyte = '1') then
+				c_readnextbyte <= '0';
+				mem_read <= '1';
 			end if;
 			-- Used to trigger the main memory for a new write
-			if (mem_writenextbyte = '1') then
-				mem_writenextbyte <= '0';
-				memwrite <= '1';
+			if (c_writenextbyte = '1') then
+				c_writenextbyte <= '0';
+				mem_write <= '1';
 			end if;
 			-- Present the read data to the CPU for one clock cycle
-			if (waitreq_reg = '0') then
-				waitreq_reg <= '1';
+			if (cpu_waitreq = '0') then
+				cpu_waitreq <= '1';
 			-- Writing to memory always happens before reading, so check for write first
-			elsif (memwrite = '1') then
+			elsif (mem_write = '1') then
 				-- Check if byte has been written to the main memory
 				if (m_waitrequest = '0') then
 					-- Byte was succesfully written to the main memory
-					mem_byteoffset <= mem_byteoffset + 1;
-					if (mem_byteoffset = 4) then
+					c_byteoffset <= c_byteoffset + 1;
+					if (c_byteoffset = 4) then
 						-- Word has been written to the main memory
-						mem_byteoffset <= 0;
-						mem_wordoffset <= mem_wordoffset + 1;
-						if (mem_wordoffset = 4) then
+						c_byteoffset <= 0;
+						c_wordoffset <= c_wordoffset + 1;
+						if (c_wordoffset = 4) then
 							-- Block has been written to the main memory
-							mem_writenextbyte <= '0';
+							c_writenextbyte <= '0';
 							-- The cache will always read after writing to the main memory
-							memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
-							mem_byteoffset <= 0;
-							mem_wordoffset <= 0;
-							memread <= '1';
+							mem_addr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
+							c_byteoffset <= 0;
+							c_wordoffset <= 0;
+							mem_read <= '1';
 						else
-							mem_writenextbyte <= '1';
+							c_writenextbyte <= '1';
 						end if;
 					else
-						mem_writenextbyte <= '1';
+						c_writenextbyte <= '1';
 					end if;
-					mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK + mem_wordoffset)
-						(31 - mem_byteoffset*8 downto 24 - mem_byteoffset*8);
-					memwrite <= '0';
+					mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset)
+						(31 - c_byteoffset*8 downto 24 - c_byteoffset*8);
+					mem_write <= '0';
 				end if;
-			elsif (memread = '1') then
+			elsif (mem_read = '1') then
 				if (m_waitrequest = '0') then
 					-- Interpret memory data as big endian
-					mem_readdata(31 - mem_byteoffset*8 downto 24 - mem_byteoffset*8) <= m_readdata;
-					mem_byteoffset <= mem_byteoffset + 1;
-					if (mem_byteoffset < 4) then
+					c_readdata(31 - c_byteoffset*8 downto 24 - c_byteoffset*8) <= m_readdata;
+					c_byteoffset <= c_byteoffset + 1;
+					if (c_byteoffset < 4) then
 						-- Still need to read more bytes from memory
-						memaddr <= memaddr + 1;
-						mem_readnextbyte <= '1';
+						mem_addr <= mem_addr + 1;
+						c_readnextbyte <= '1';
 					else
 						-- We have loaded an entire word, so we can store it in cache
-						cache_d(block_idx*WORDS_PER_BLOCK + mem_wordoffset) <= mem_readdata;
-						mem_wordoffset <= mem_wordoffset + 1;
-						if (mem_wordoffset < 4) then
+						cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset) <= c_readdata;
+						c_wordoffset <= c_wordoffset + 1;
+						if (c_wordoffset < 4) then
 							-- Still need to read more words
-							memaddr <= memaddr + 1;
-							mem_byteoffset <= 0;
-							mem_readnextbyte <= '1';
+							mem_addr <= mem_addr + 1;
+							c_byteoffset <= 0;
+							c_readnextbyte <= '1';
 						else
 							-- We loaded the entire block, so we can return value requested by the CPU
-							mem_wordoffset <= 0;
-							readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
-							if (mem_rthenwc) then
+							c_wordoffset <= 0;
+							cpu_readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
+							if (c_rthenwc) then
 								-- Write the new value into the cache
 								cache_d(block_idx*WORDS_PER_BLOCK + offset) <= s_writedata;
 								-- Mark the block as valid and dirty
 								cache_f(block_idx) <= "11";
 								-- Lower the rthenwc flag
-								mem_rthenwc <= '0';
+								c_rthenwc <= '0';
 							else
 								-- Block is now valid and clean
 								cache_f(block_idx) <= "10";
 							end if;
-							waitreq_reg <= '0';
+							cpu_waitreq <= '0';
 						end if;
 					end if;
-					memread <= '0';
+					mem_read <= '0';
 				end if;
 			elsif (s_read) then
 				tag := s_addr(ADDRESS_START downto TAG_END_BIT);
@@ -181,36 +185,36 @@ begin
 					-- Check if block is valid
 					if (cache_f(block_idx)(1) = '1') then
 						-- Return data found at that address in cache
-						readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
-						waitreq_reg <= '0';
+						cpu_readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
+						cpu_waitreq <= '0';
 					else
 						-- Request the data from the main memory
-						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
-						mem_byteoffset <= 0;
-						mem_wordoffset <= 0;
-						memread <= '1';
+						mem_addr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
+						c_byteoffset <= 0;
+						c_wordoffset <= 0;
+						mem_read <= '1';
 					end if;
 				else
 					-- Check if block is dirty
 					if (cache_f(block_idx)(0) = '1') then
 						-- Write back the current block to main memory
 						-- Shift the tag of the current block and add it to the block index to get the address in memory
-						memaddr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
+						mem_addr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
 							+ block_idx;
 						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK)(31 downto 24);
-						mem_byteoffset <= 0;
-						mem_wordoffset <= 0;
-						memwrite <= '1';
+						c_byteoffset <= 0;
+						c_wordoffset <= 0;
+						mem_write <= '1';
 						-- Request the new block from the main memory
 							-- Writing to memory always results in a read
 						-- Mark the new cache block as clean
 							-- Taken care of in the read method
 					else
 						-- Request the data from the main memory
-						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
-						mem_byteoffset <= 0;
-						mem_wordoffset <= 0;
-						memread <= '1';
+						mem_addr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
+						c_byteoffset <= 0;
+						c_wordoffset <= 0;
+						mem_read <= '1';
 					end if;
 				end if;
 			elsif (s_write) then
@@ -226,49 +230,49 @@ begin
 						-- Mark the block as dirty and valid
 						cache_f(block_idx) <= "11";
 						-- Lower the waitrequest signal
-						waitreq_reg <= '0';
+						cpu_waitreq <= '0';
 					else
 						-- Get the new block from the main memory
-						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
-						mem_byteoffset <= 0;
-						mem_wordoffset <= 0;
-						memread <= '1';
+						mem_addr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
+						c_byteoffset <= 0;
+						c_wordoffset <= 0;
+						mem_read <= '1';
 						-- Write the data into the cache block
-						mem_rthenwc <= '1'; -- Ensures that the new value is written to the cache
+						c_rthenwc <= '1'; -- Ensures that the new value is written to the cache
 					end if;
 				else
 					-- Check if block is dirty
 					if (cache_f(block_idx)(0) = '1') then
 						-- Write the old cache block to the main memory
-						memaddr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
+						mem_addr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
 							+ block_idx;
 						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK)(31 downto 24);
-						mem_byteoffset <= 0;
-						mem_wordoffset <= 0;
-						memwrite <= '1';
+						c_byteoffset <= 0;
+						c_wordoffset <= 0;
+						mem_write <= '1';
 						-- Get the new block from the main memory
 							-- Read always happens after write to memory
 						-- Write the new data into the cache block
-						mem_rthenwc <= '1';
+						c_rthenwc <= '1';
 					else
 						-- Get the new block from the main memory
-						memaddr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
-						mem_byteoffset <= 0;
-						mem_wordoffset <= 0;
-						memread <= '1';
+						mem_addr <= to_integer(unsigned(s_addr(ADDRESS_START downto 0)) and BLOCK_ADDR_MASK);
+						c_byteoffset <= 0;
+						c_wordoffset <= 0;
+						mem_read <= '1';
 						-- Write the data into the cache block
-						mem_rthenwc <= '1'; -- Ensures that the new value is written to the cache
+						c_rthenwc <= '1'; -- Ensures that the new value is written to the cache
 					end if;
 				end if;
 			end if;
 		end if;
 	end process;
 
-	s_waitrequest <= waitreq_reg;
-	s_readdata <= readdata;
+	s_waitrequest <= cpu_waitreq;
+	s_readdata <= cpu_readdata;
 
-	m_addr <= memaddr;
-	m_read <= memread;
-	m_write <= memwrite;
+	m_addr <= mem_addr;
+	m_read <= mem_read;
+	m_write <= mem_write;
 	m_writedata <= mem_writedata;
 end arch;
