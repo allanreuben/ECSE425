@@ -68,6 +68,27 @@ signal m_write : std_logic;
 signal m_writedata : std_logic_vector (7 downto 0);
 signal m_waitrequest : std_logic; 
 
+-- Function to easily create an address
+function to_address(tag, block_index, word_offset : integer) return std_logic_vector is
+    variable addr : std_logic_vector(31 downto 0);
+begin
+    addr(31 downto 15) := (others => '0');
+    addr(14 downto 9)  := std_logic_vector(to_unsigned(tag, 6));
+    addr(8 downto 4)   := std_logic_vector(to_unsigned(block_index, 5));
+    addr(3 downto 2)   := std_logic_vector(to_unsigned(word_offset, 2));
+    addr(1 downto 0)   := (others => '0'); -- Byte offset 0
+    return addr;
+end to_address;
+
+-- Assert will be used many times so package and track the amount of errors
+procedure assert_equal(actual, expected : in std_logic_vector(31 downto 0); error_count : inout integer) is
+    begin
+        if (actual /= expected) then
+            error_count := error_count + 1;
+        end if;
+        assert (actual = expected) report "Expected " & integer'image(to_integer(signed(expected))) & " but the data was " & integer'image(to_integer(signed(actual))) severity error;
+    end assert_equal;
+
 begin
 
 -- Connect the components which we instantiated above to their
@@ -113,10 +134,219 @@ begin
 end process;
 
 test_process : process
+    variable error_count : integer := 0;
 begin
 
--- put your tests here
-	
+    Report "Starting test bench";
+    -- Reset cache
+    reset <= '1';
+    s_write <= '0';
+    s_read <='0';
+	WAIT FOR clk_period;
+	reset <= '0';
+    WAIT FOR clk_period;
+
+    -- Test case 1: Write Tag Equal invalid clean
+    -- Tag equal because we initalize to 000000
+    report "Test 1: Write tag equal invalid"
+    s_write      <= '1';
+    s_addr       <= to_address(0,0,0)
+    s_writedata  <= x"FFFFFFFF";
+    -- We wait until 1 cc after waitrequest falls to 0
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    wait until rising_edge(clock);
+    s_write      <= '0';
+
+
+    -- Test case 2: Read Tag Equal valid clean
+    -- Reads data written to in above test case, success confirms case 1 and 2 both work
+    report "Test 2: Read tag equal valid"
+    s_read      <= '1';
+    s_addr      <= to_address(0,0,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"FFFFFFFF", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
+
+    -- Test case 3: Write Tag NotEqual invalid clean
+    report "Test 3: Write tag not equal invalid"
+    s_write      <= '1';
+    -- Change tag and block
+    s_addr       <= to_address(1,1,0)
+    s_writedata  <= x"FFFFFFFF";
+    -- We wait until 1 cc after waitrequest falls to 0
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    wait until rising_edge(clock);
+    s_write      <= '0';
+
+
+    -- Test case 4: Read Tag Equal valid clean
+    -- Reads data written to in above test case, success confirms case 3 and 4 both work
+    report "Test 4: Read tag equal valid"
+    s_read      <= '1';
+    s_addr      <= to_address(1,1,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"FFFFFFFF", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
+
+    -- Test case 5: Write Tag Equal valid clean
+    -- Overwrites the data from test 3, should become dirty afterwards
+    report "Test 5: Write tag equal valid clean to dirty"
+    s_write      <= '1';
+    s_addr       <= to_address(1,1,0)
+    s_writedata  <= x"FAFAFAFA";
+    -- We wait until 1 cc after waitrequest falls to 0
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    wait until rising_edge(clock);
+    s_write      <= '0';
+
+
+    -- Test case 6: Read Tag Equal valid dirty
+    report "Test 6: Read tag equal valid"
+    s_read      <= '1';
+    s_addr      <= to_address(1,1,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"FAFAFAFA", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
+
+    -- Test case 7: Write Tag Equal valid dirty
+    -- Overwrites the data from test 5, should stay dirty
+    report "Test 7: Write tag equal valid dirty to dirty"
+    s_write      <= '1';
+    s_addr       <= to_address(1,1,0)
+    s_writedata  <= x"12121212";
+    -- We wait until 1 cc after waitrequest falls to 0
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    wait until rising_edge(clock);
+    s_write      <= '0';
+
+    -- Test case 8: Read Tag Equal valid dirty
+    report "Test 8: Read tag equal valid"
+    s_read      <= '1';
+    s_addr      <= to_address(1,1,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"12121212", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
+
+    -- Test case 9: Write Tag Not Equal valid dirty
+    -- Overwrites the data from test 7, should stay dirty
+    report "Test 9: Write tag not equal valid dirty to dirty"
+    s_write      <= '1';
+    s_addr       <= to_address(2,1,0)
+    s_writedata  <= x"ACACACAC";
+    -- We wait until 1 cc after waitrequest falls to 0
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    wait until rising_edge(clock);
+    s_write      <= '0';
+
+    -- Test case 10: Read Tag Equal valid dirty
+    report "Test 10: Read tag equal valid dirty"
+    s_read      <= '1';
+    s_addr      <= to_address(2,1,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"ACACACAC", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
+    -- Test case 11: Read Tag Not Equal valid dirty
+    report "Test 11: Read tag not equal valid dirty"
+    -- Data not in cache. Write data in cache to main memory, load data from main memory, mark as clean
+    s_read      <= '1';
+    s_addr      <= to_address(1,1,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"12121212", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
+    -- Test case 12: Read Tag Not Equal valid clean
+    report "Test 12: Read tag not equal valid clean"
+    -- Data not in cache. Data in cache is clean so no write. Load data from main memory, mark as clean
+    s_read      <= '1';
+    s_addr      <= to_address(2,1,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"ACACACAC", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+    
+    -- Test case 13: Write Tag Not Equal valid clean
+    -- Load block from main memory. Data clean so no write to memory. Set to dirty
+    report "Test 13: Write tag not equal valid clean to dirty"
+    s_write      <= '1';
+    s_addr       <= to_address(3,1,0)
+    s_writedata  <= x"00001111";
+    -- We wait until 1 cc after waitrequest falls to 0
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    wait until rising_edge(clock);
+    s_write      <= '0';
+
+    -- Now read data from cache to confirm validity
+    s_read      <= '1';
+    s_addr      <= to_address(3,1,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"00001111", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
+    Report "Resetting cache";
+    -- Reset cache
+    reset <= '1';
+    s_write <= '0';
+    s_read <='0';
+	WAIT FOR clk_period;
+	reset <= '0';
+    WAIT FOR clk_period;
+
+    -- Test case 14: Read Tag Equal invalid clean
+    report "Test 14: Read Tag Equal invalid clean"
+    s_read      <= '1';
+    s_addr      <= to_address(0,0,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"FFFFFFFF", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
+    -- Test case 15: Read Tag Not Equal invalid clean
+    report "Test 15: Read Tag Not Equal invalid clean"
+    s_read      <= '1';
+    s_addr      <= to_address(1,1,0)
+    wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"12121212", error_count);
+    wait until rising_edge(clock);
+    s_read      <= '0';
+
 end process;
 	
 end;
