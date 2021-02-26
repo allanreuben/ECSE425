@@ -201,12 +201,13 @@ begin
     report "Test 4a: Read tag equal valid";
     s_read      <= '1';
     s_addr      <= to_address(0,0,2);
-    wait until rising_edge(s_waitrequest);
+    -- wait until rising_edge(s_waitrequest);
     wait until falling_edge(s_waitrequest);
     -- Data is exposed for 1 cc at the falling edge of s_waitrequest
     assert_equal(s_readdata, x"08090A0B", error_count);
-    wait until rising_edge(clk);
+    -- wait until rising_edge(clk);
     s_read      <= '0';
+    wait until rising_edge(clk);
 
 
     -- -- Test case 5: Write Tag Equal valid clean
