@@ -121,6 +121,8 @@ begin
 					-- Block is now valid and clean
 					cache_f(block_idx) <= "10";
 				end if;
+				-- Update the tag
+				cache_t(block_idx) <= tag;
 				cpu_waitreq <= '0';
 
 			-- Used to trigger the main memory for a new read
