@@ -63,7 +63,7 @@ architecture arch of cache is
 	-- Registers for outputs to the CPU
 	signal cpu_waitreq: std_logic := '1'; -- Wait request signal being monitored by the CPU
 	signal cpu_readdata: std_logic_vector(31 downto 0); -- The data to be read by the CPU
-	signal cpu_readcomplete: std_logic := '1'; -- Read complete flag
+	signal cpu_readcomplete: std_logic := '0'; -- Read complete flag
 	-- Registers for inputs to the main memory
 	signal mem_addr: integer range 0 to ram_size-1; -- Address of target byte in memory
 	signal mem_read: std_logic := '0'; -- High when reading from main memory
