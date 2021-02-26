@@ -49,7 +49,7 @@ architecture arch of cache is
 
 	--------------- TYPE DEFINITIONS ---------------
 	-- An array type for the data in the cache
-	type cache_data is array(CACHE_SIZE_WORDS-1 downto 0) of std_logic_vector(31 downto 0);
+	type cache_data is array(0 to CACHE_SIZE_WORDS-1) of std_logic_vector(31 downto 0);
 	-- An array type for the tags in the cache
 	type cache_tags is array(CACHE_SIZE_BLOCKS-1 downto 0) of std_logic_vector(TAG_SIZE-1 downto 0);
 	-- An array type for the valid(1)/invalid(0) and dirty(1)/clean(0) flags
@@ -63,6 +63,7 @@ architecture arch of cache is
 	-- Registers for outputs to the CPU
 	signal cpu_waitreq: std_logic := '1'; -- Wait request signal being monitored by the CPU
 	signal cpu_readdata: std_logic_vector(31 downto 0); -- The data to be read by the CPU
+	signal cpu_readcomplete: std_logic := '1'; -- Read complete flag
 	-- Registers for inputs to the main memory
 	signal mem_addr: integer range 0 to ram_size-1; -- Address of target byte in memory
 	signal mem_read: std_logic := '0'; -- High when reading from main memory
@@ -70,11 +71,12 @@ architecture arch of cache is
 	signal mem_writedata: std_logic_vector(7 downto 0); -- The byte to write to the main memory
 	-- Internal signals
 	signal c_readdata: std_logic_vector(31 downto 0); -- Data read from the main memory
-	signal c_byteoffset: integer range 0 to 3 := 0; -- Byte offset relative to current block being processed
-	signal c_wordoffset: integer range 0 to 3 := 0; -- Word offset relative to current block being processed
+	signal c_byteoffset: integer range 0 to 4 := 0; -- Byte offset relative to current block being processed
+	signal c_wordoffset: integer range 0 to 4 := 0; -- Word offset relative to current block being processed
 	signal c_readnextbyte: std_logic := '0'; -- Set high if another byte should be read from the memory
 	signal c_writenextbyte: std_logic := '0'; -- Set high if another byte should be written to the memory
 	signal c_rthenwc: std_logic := '0'; -- Set high if the cache should read from main memory then write to cache
+	signal c_readcomplete: std_logic := '0'; -- Read complete flag
 	-- Signals for storing parts of the address specified by the CPU
 	signal tag: std_logic_vector(TAG_SIZE-1 downto 0); -- Tag of the address specified by the CPU
 	signal block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1; -- Block index of the address specified by the CPU
@@ -97,8 +99,29 @@ begin
 
 		-- Main processing block
 		elsif (rising_edge(clock)) then
+		  -- Used to delay by 1cc and ensure signal correctness
+		  if (c_readcomplete = '1') then
+		    -- We have loaded an entire word, so we can store it in cache
+				cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset) <= c_readdata;
+				c_readcomplete <= '0';
+				c_wordoffset <= c_wordoffset + 1;
+			elsif (cpu_readcomplete = '1') then
+			  cpu_readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
+				cpu_waitreq <= '0';
+				cpu_readcomplete <= '0';
+				if (c_rthenwc = '1') then
+				  -- Write the new value into the cache
+					cache_d(block_idx*WORDS_PER_BLOCK + offset) <= s_writedata;
+					-- Mark the block as valid and dirty
+					cache_f(block_idx) <= "11";
+					-- Lower the rthenwc flag
+					c_rthenwc <= '0';
+				else
+					-- Block is now valid and clean
+					cache_f(block_idx) <= "10";
+				end if;
 			-- Used to trigger the main memory for a new read
-			if (c_readnextbyte = '1') then
+			elsif (c_readnextbyte = '1') then
 				c_readnextbyte <= '0';
 				mem_read <= '1';
 			-- Used to trigger the main memory for a new write
@@ -116,7 +139,6 @@ begin
 					if (c_byteoffset = 4) then
 						-- Word has been written to the main memory
 						c_byteoffset <= 0;
-						c_wordoffset <= c_wordoffset + 1;
 						if (c_wordoffset = 4) then
 							-- Block has been written to the main memory
 							c_writenextbyte <= '0';
@@ -127,6 +149,7 @@ begin
 							mem_read <= '1';
 						else
 							c_writenextbyte <= '1';
+							c_wordoffset <= c_wordoffset + 1;
 						end if;
 					else
 						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset)
@@ -146,30 +169,16 @@ begin
 						mem_addr <= mem_addr + 1;
 						c_readnextbyte <= '1';
 					else
-						-- We have loaded an entire word, so we can store it in cache
-						cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset) <= c_readdata;
-						c_wordoffset <= c_wordoffset + 1;
-						if (c_wordoffset < 4) then
+						c_readcomplete <= '1';
+						if (c_wordoffset < 3) then
 							-- Still need to read more words
 							mem_addr <= mem_addr + 1;
 							c_byteoffset <= 0;
 							c_readnextbyte <= '1';
 						else
 							-- We loaded the entire block, so we can return value requested by the CPU
-							c_wordoffset <= 0;
-							cpu_readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
-							if (c_rthenwc = '1') then
-								-- Write the new value into the cache
-								cache_d(block_idx*WORDS_PER_BLOCK + offset) <= s_writedata;
-								-- Mark the block as valid and dirty
-								cache_f(block_idx) <= "11";
-								-- Lower the rthenwc flag
-								c_rthenwc <= '0';
-							else
-								-- Block is now valid and clean
-								cache_f(block_idx) <= "10";
-							end if;
-							cpu_waitreq <= '0';
+							cpu_readcomplete <= '1';
+							--c_wordoffset <= 0;
 						end if;
 					end if;
 					mem_read <= '0';
@@ -274,3 +283,4 @@ begin
 	m_write <= mem_write;
 	m_writedata <= mem_writedata;
 end arch;
+
