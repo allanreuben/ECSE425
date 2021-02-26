@@ -101,14 +101,12 @@ begin
 			if (c_readnextbyte = '1') then
 				c_readnextbyte <= '0';
 				mem_read <= '1';
-			end if;
 			-- Used to trigger the main memory for a new write
-			if (c_writenextbyte = '1') then
+			elsif (c_writenextbyte = '1') then
 				c_writenextbyte <= '0';
 				mem_write <= '1';
-			end if;
 			-- Present the read data to the CPU for one clock cycle
-			if (cpu_waitreq = '0') then
+			elsif (cpu_waitreq = '0') then
 				cpu_waitreq <= '1';
 			-- Writing to memory always happens before reading, so check for write first
 			elsif (mem_write = '1') then
