@@ -113,7 +113,6 @@ begin
 				-- Check if byte has been written to the main memory
 				if (m_waitrequest = '0') then
 					-- Byte was succesfully written to the main memory
-					c_byteoffset <= c_byteoffset + 1;
 					if (c_byteoffset = 4) then
 						-- Word has been written to the main memory
 						c_byteoffset <= 0;
@@ -130,19 +129,20 @@ begin
 							c_writenextbyte <= '1';
 						end if;
 					else
+						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset)
+							(31 - c_byteoffset*8 downto 24 - c_byteoffset*8);
+						c_byteoffset <= c_byteoffset + 1;
 						c_writenextbyte <= '1';
 					end if;
-					mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset)
-						(31 - c_byteoffset*8 downto 24 - c_byteoffset*8);
 					mem_write <= '0';
 				end if;
 			elsif (mem_read = '1') then
 				if (m_waitrequest = '0') then
 					-- Interpret memory data as big endian
 					c_readdata(31 - c_byteoffset*8 downto 24 - c_byteoffset*8) <= m_readdata;
-					c_byteoffset <= c_byteoffset + 1;
-					if (c_byteoffset < 4) then
+					if (c_byteoffset < 3) then
 						-- Still need to read more bytes from memory
+						c_byteoffset <= c_byteoffset + 1;
 						mem_addr <= mem_addr + 1;
 						c_readnextbyte <= '1';
 					else
@@ -200,7 +200,7 @@ begin
 						mem_addr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
 							+ block_idx;
 						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK)(31 downto 24);
-						c_byteoffset <= 0;
+						c_byteoffset <= 1;
 						c_wordoffset <= 0;
 						mem_write <= '1';
 						-- Request the new block from the main memory
@@ -245,7 +245,7 @@ begin
 						mem_addr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
 							+ block_idx;
 						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK)(31 downto 24);
-						c_byteoffset <= 0;
+						c_byteoffset <= 1;
 						c_wordoffset <= 0;
 						mem_write <= '1';
 						-- Get the new block from the main memory
