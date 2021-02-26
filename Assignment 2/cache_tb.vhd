@@ -175,7 +175,7 @@ begin
     report "Test 3: Write tag not equal invalid";
     s_write      <= '1';
     -- Change tag and block
-    s_addr       <= to_address(1,1,1);
+    s_addr       <= to_address(0,0,0);
     s_writedata  <= x"FFFFFFFF";
     -- We wait until 1 cc after waitrequest falls to 0
     -- wait until rising_edge(s_waitrequest);
@@ -183,6 +183,21 @@ begin
     -- wait until rising_edge(clk);
     s_write      <= '0';
 
+    wait until falling_edge(clk);
+
+    -- Test case 3a: Write Tag NotEqual valid clean
+    report "Test 3a: Write tag not equal valid";
+    s_write      <= '1';
+    -- Change tag and block
+    s_addr       <= to_address(1,0,0);
+    s_writedata  <= x"AAAAAAAA";
+    -- We wait until 1 cc after waitrequest falls to 0
+    -- wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- wait until rising_edge(clk);
+    s_write      <= '0';
+
+    wait until falling_edge(clk);
 
     -- Test case 4: Read Tag Equal valid clean
     -- Reads data written to in above test case, success confirms case 3 and 4 both work
@@ -196,18 +211,29 @@ begin
     -- -- wait until rising_edge(clk);
     -- s_read      <= '0';
 
-    wait until falling_edge(clk);
+    
 
     report "Test 4a: Read tag equal valid";
     s_read      <= '1';
-    s_addr      <= to_address(1,1,1);
+    s_addr      <= to_address(1,0,0);
+    -- wait until rising_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
+    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    assert_equal(s_readdata, x"AAAAAAAA", error_count);
+    -- wait until rising_edge(clk);
+    s_read      <= '0';
+    wait until falling_edge(clk);
+
+    report "Test 4b: Read tag not equal valid";
+    s_read      <= '1';
+    s_addr      <= to_address(0,0,0);
     -- wait until rising_edge(s_waitrequest);
     wait until falling_edge(s_waitrequest);
     -- Data is exposed for 1 cc at the falling edge of s_waitrequest
     assert_equal(s_readdata, x"FFFFFFFF", error_count);
     -- wait until rising_edge(clk);
     s_read      <= '0';
-    wait until rising_edge(clk);
+    wait until falling_edge(clk);
 
 
     -- -- Test case 5: Write Tag Equal valid clean
