@@ -168,12 +168,14 @@ begin
 							mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK + (c_wordoffset+1))(31 downto 24);
 							c_writenextbyte <= '1';
 							c_wordoffset <= c_wordoffset + 1;
+							mem_addr <= mem_addr + 1;
 						end if;
 					else
 						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset)
 							(31 - (c_byteoffset+1)*8 downto 24 - (c_byteoffset+1)*8);
 						c_byteoffset <= c_byteoffset + 1;
 						c_writenextbyte <= '1';
+						mem_addr <= mem_addr + 1;
 					end if;
 					mem_write <= '0';
 				end if;
