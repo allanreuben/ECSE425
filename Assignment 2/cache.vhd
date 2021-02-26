@@ -77,13 +77,17 @@ architecture arch of cache is
 	signal c_writenextbyte: std_logic := '0'; -- Set high if another byte should be written to the memory
 	signal c_rthenwc: std_logic := '0'; -- Set high if the cache should read from main memory then write to cache
 	signal c_readcomplete: std_logic := '0'; -- Read complete flag
-	-- Signals for storing parts of the address specified by the CPU
-	signal tag: std_logic_vector(TAG_SIZE-1 downto 0); -- Tag of the address specified by the CPU
-	signal block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1; -- Block index of the address specified by the CPU
-	signal offset: natural range 0 to WORDS_PER_BLOCK-1; -- Offset of the address specified by the CPU
+	-- -- Signals for storing parts of the address specified by the CPU
+	-- signal tag: std_logic_vector(TAG_SIZE-1 downto 0); -- Tag of the address specified by the CPU
+	-- signal block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1; -- Block index of the address specified by the CPU
+	-- signal offset: natural range 0 to WORDS_PER_BLOCK-1; -- Offset of the address specified by the CPU
 begin
 
 	cache_proc: process (clock, reset)
+		-- Signals for storing parts of the address specified by the CPU
+		variable tag: std_logic_vector(TAG_SIZE-1 downto 0); -- Tag of the address specified by the CPU
+		variable block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1; -- Block index of the address specified by the CPU
+		variable offset: natural range 0 to WORDS_PER_BLOCK-1; -- Offset of the address specified by the CPU
 	begin
 		-- Initialize the arrays
 		if (reset = '1') or (now < 1 ps) then
@@ -99,6 +103,11 @@ begin
 
 		-- Main processing block
 		elsif (rising_edge(clock)) then
+			-- Calculate the tag, block index, and offset
+			tag := s_addr(ADDRESS_START downto TAG_END_BIT);
+			block_idx := to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
+			offset := to_integer(unsigned(s_addr(BLOCK_ADDR_END_BIT-1 downto OFFSET_END_BIT)));
+
 			-- Used to delay by 1cc to ensure signal correctness
 			if (c_readcomplete = '1') then
 		    	-- We have loaded an entire word, so we can store it in cache
@@ -196,9 +205,6 @@ begin
 
 			-- Check if processor is requesting a read
 			elsif (s_read = '1') then
-				tag <= s_addr(ADDRESS_START downto TAG_END_BIT);
-				block_idx <= to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
-				offset <= to_integer(unsigned(s_addr(BLOCK_ADDR_END_BIT-1 downto OFFSET_END_BIT)));
 				-- Check if tag matches
 				if (tag = cache_t(block_idx)) then
 					-- Check if block is valid
@@ -239,9 +245,6 @@ begin
 
 			-- Check if processor is requesting a write
 			elsif (s_write = '1') then
-				tag <= s_addr(ADDRESS_START downto TAG_END_BIT);
-				block_idx <= to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
-				offset <= to_integer(unsigned(s_addr(BLOCK_ADDR_END_BIT-1 downto OFFSET_END_BIT)));
 				-- Check if tag matches
 				if (tag = cache_t(block_idx)) then
 					-- Check if block is valid
