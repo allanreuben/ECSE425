@@ -196,6 +196,8 @@ begin
     wait until rising_edge(clk);
     s_read      <= '0';
 
+    wait until falling_edge(clk);
+
     report "Test 4a: Read tag equal valid";
     s_read      <= '1';
     s_addr      <= to_address(0,0,2);
