@@ -99,18 +99,19 @@ begin
 
 		-- Main processing block
 		elsif (rising_edge(clock)) then
-		  -- Used to delay by 1cc and ensure signal correctness
-		  if (c_readcomplete = '1') then
-		    -- We have loaded an entire word, so we can store it in cache
+			-- Used to delay by 1cc to ensure signal correctness
+			if (c_readcomplete = '1') then
+		    	-- We have loaded an entire word, so we can store it in cache
 				cache_d(block_idx*WORDS_PER_BLOCK + c_wordoffset) <= c_readdata;
 				c_readcomplete <= '0';
 				c_wordoffset <= c_wordoffset + 1;
+
+			-- Used to delay the final read by 1cc so that the cache properly populated
 			elsif (cpu_readcomplete = '1') then
-			  cpu_readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
-				cpu_waitreq <= '0';
+				cpu_readdata <= cache_d(block_idx*WORDS_PER_BLOCK + offset);
 				cpu_readcomplete <= '0';
 				if (c_rthenwc = '1') then
-				  -- Write the new value into the cache
+					-- Write the new value into the cache
 					cache_d(block_idx*WORDS_PER_BLOCK + offset) <= s_writedata;
 					-- Mark the block as valid and dirty
 					cache_f(block_idx) <= "11";
@@ -120,18 +121,23 @@ begin
 					-- Block is now valid and clean
 					cache_f(block_idx) <= "10";
 				end if;
+				cpu_waitreq <= '0';
+
 			-- Used to trigger the main memory for a new read
 			elsif (c_readnextbyte = '1') then
 				c_readnextbyte <= '0';
 				mem_read <= '1';
+
 			-- Used to trigger the main memory for a new write
 			elsif (c_writenextbyte = '1') then
 				c_writenextbyte <= '0';
 				mem_write <= '1';
+
 			-- Present the read data to the CPU for one clock cycle
 			elsif (cpu_waitreq = '0') then
 				cpu_waitreq <= '1';
-			-- Writing to memory always happens before reading, so check for write first
+
+			-- Enter this block if we are writing to the main memory
 			elsif (mem_write = '1') then
 				-- Check if byte has been written to the main memory
 				if (m_waitrequest = '0') then
@@ -159,6 +165,8 @@ begin
 					end if;
 					mem_write <= '0';
 				end if;
+			
+			-- Enter this block if we are reading from the main memory
 			elsif (mem_read = '1') then
 				if (m_waitrequest = '0') then
 					-- Interpret memory data as big endian
@@ -183,6 +191,8 @@ begin
 					end if;
 					mem_read <= '0';
 				end if;
+
+			-- Check if processor is requesting a read
 			elsif (s_read = '1') then
 				tag <= s_addr(ADDRESS_START downto TAG_END_BIT);
 				block_idx <= to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
@@ -224,6 +234,8 @@ begin
 						mem_read <= '1';
 					end if;
 				end if;
+
+			-- Check if processor is requesting a write
 			elsif (s_write = '1') then
 				tag <= s_addr(ADDRESS_START downto TAG_END_BIT);
 				block_idx <= to_integer(unsigned(s_addr(TAG_END_BIT-1 downto BLOCK_ADDR_END_BIT)));
