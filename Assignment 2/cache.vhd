@@ -77,10 +77,6 @@ architecture arch of cache is
 	signal c_writenextbyte: std_logic := '0'; -- Set high if another byte should be written to the memory
 	signal c_rthenwc: std_logic := '0'; -- Set high if the cache should read from main memory then write to cache
 	signal c_readcomplete: std_logic := '0'; -- Read complete flag
-	-- -- Signals for storing parts of the address specified by the CPU
-	-- signal tag: std_logic_vector(TAG_SIZE-1 downto 0); -- Tag of the address specified by the CPU
-	-- signal block_idx: natural range 0 to CACHE_SIZE_BLOCKS-1; -- Block index of the address specified by the CPU
-	-- signal offset: natural range 0 to WORDS_PER_BLOCK-1; -- Offset of the address specified by the CPU
 begin
 
 	cache_proc: process (clock, reset)
