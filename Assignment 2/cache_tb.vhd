@@ -171,40 +171,40 @@ begin
     -- s_read      <= '0';
 
 
-    -- -- Test case 3: Write Tag NotEqual invalid clean
-    -- report "Test 3: Write tag not equal invalid";
-    -- s_write      <= '1';
-    -- -- Change tag and block
-    -- s_addr       <= to_address(1,1,0);
-    -- s_writedata  <= x"FFFFFFFF";
-    -- -- We wait until 1 cc after waitrequest falls to 0
+    -- Test case 3: Write Tag NotEqual invalid clean
+    report "Test 3: Write tag not equal invalid";
+    s_write      <= '1';
+    -- Change tag and block
+    s_addr       <= to_address(1,1,1);
+    s_writedata  <= x"FFFFFFFF";
+    -- We wait until 1 cc after waitrequest falls to 0
     -- wait until rising_edge(s_waitrequest);
-    -- wait until falling_edge(s_waitrequest);
+    wait until falling_edge(s_waitrequest);
     -- wait until rising_edge(clk);
-    -- s_write      <= '0';
+    s_write      <= '0';
 
 
     -- Test case 4: Read Tag Equal valid clean
     -- Reads data written to in above test case, success confirms case 3 and 4 both work
-    report "Test 4: Read tag equal invalid";
-    s_read      <= '1';
-    s_addr      <= to_address(0,0,0);
-    -- wait until rising_edge(s_waitrequest);
-    wait until falling_edge(s_waitrequest);
-    -- Data is exposed for 1 cc at the falling edge of s_waitrequest
-    assert_equal(s_readdata, x"00010203", error_count);
-    -- wait until rising_edge(clk);
-    s_read      <= '0';
+    -- report "Test 4: Read tag equal invalid";
+    -- s_read      <= '1';
+    -- s_addr      <= to_address(0,0,0);
+    -- -- wait until rising_edge(s_waitrequest);
+    -- wait until falling_edge(s_waitrequest);
+    -- -- Data is exposed for 1 cc at the falling edge of s_waitrequest
+    -- assert_equal(s_readdata, x"00010203", error_count);
+    -- -- wait until rising_edge(clk);
+    -- s_read      <= '0';
 
     wait until falling_edge(clk);
 
     report "Test 4a: Read tag equal valid";
     s_read      <= '1';
-    s_addr      <= to_address(0,0,2);
+    s_addr      <= to_address(1,1,1);
     -- wait until rising_edge(s_waitrequest);
     wait until falling_edge(s_waitrequest);
     -- Data is exposed for 1 cc at the falling edge of s_waitrequest
-    assert_equal(s_readdata, x"08090A0B", error_count);
+    assert_equal(s_readdata, x"FFFFFFFF", error_count);
     -- wait until rising_edge(clk);
     s_read      <= '0';
     wait until rising_edge(clk);
