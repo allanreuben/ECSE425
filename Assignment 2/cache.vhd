@@ -223,8 +223,8 @@ begin
 					if (cache_f(block_idx)(0) = '1') then
 						-- Write back the current block to main memory
 						-- Shift the tag of the current block and add it to the block index to get the address in memory
-						mem_addr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
-							+ block_idx;
+						mem_addr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT)) 
+						+ to_integer(shift_left(to_unsigned(block_idx, ADDRESS_START + 1), BLOCK_ADDR_END_BIT));
 						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK)(31 downto 24);
 						c_byteoffset <= 0;
 						c_wordoffset <= 0;
@@ -267,8 +267,8 @@ begin
 					-- Check if block is dirty
 					if (cache_f(block_idx)(0) = '1') then
 						-- Write the old cache block to the main memory
-						mem_addr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT))
-							+ block_idx;
+						mem_addr <= to_integer(shift_left(resize(unsigned(cache_t(block_idx)), ADDRESS_START + 1), TAG_END_BIT)) 
+						+ to_integer(shift_left(to_unsigned(block_idx, ADDRESS_START + 1), BLOCK_ADDR_END_BIT));
 						mem_writedata <= cache_d(block_idx*WORDS_PER_BLOCK)(31 downto 24);
 						c_byteoffset <= 0;
 						c_wordoffset <= 0;
@@ -299,4 +299,3 @@ begin
 	m_write <= mem_write;
 	m_writedata <= mem_writedata;
 end arch;
-
