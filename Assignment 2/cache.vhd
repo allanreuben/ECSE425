@@ -49,7 +49,7 @@ architecture arch of cache is
 
 	--------------- TYPE DEFINITIONS ---------------
 	-- An array type for the data in the cache
-	type cache_data is array(0 to CACHE_SIZE_WORDS-1) of std_logic_vector(31 downto 0);
+	type cache_data is array(CACHE_SIZE_WORDS-1 downto 0) of std_logic_vector(31 downto 0);
 	-- An array type for the tags in the cache
 	type cache_tags is array(CACHE_SIZE_BLOCKS-1 downto 0) of std_logic_vector(TAG_SIZE-1 downto 0);
 	-- An array type for the valid(1)/invalid(0) and dirty(1)/clean(0) flags
