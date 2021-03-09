@@ -160,6 +160,11 @@ begin
     -- Test case 2: Read tag equal invalid clean
     -- Tag equal because we initalize to 000000
     -- Reads data already present in memory
+    -- This will return an error if the offset is not 0. If offset is changed these will be the correct data
+    -- Offset 0: 00010203
+    -- Offset 1: 04050607
+    -- Offset 2: 08090A0B
+    -- Offset 3: 0C0D0E0F
     report "Test 2: Read tag equal invalid clean";
     s_read      <= '1';
     s_addr      <= to_address(0,0,0);
@@ -254,6 +259,11 @@ begin
     -- Test case 11: Write tag not equal valid clean
     report "Test 11: Write tag not equal valid clean";
     -- First read to make clean
+    -- This will return an error if the offset is not 0. If offset is changed these will be the correct data
+    -- Offset 0: 20212223
+    -- Offset 1: 24252627
+    -- Offset 2: 28292A2B
+    -- Offset 3: 2C2D2E2F
     s_read      <= '1';
     s_addr      <= to_address(0,2,0);
     wait until falling_edge(s_waitrequest);
@@ -263,7 +273,7 @@ begin
 
     -- Next write with a different tag
     s_write     <= '1';
-    s_addr      <= to_address(0,2,0);
+    s_addr      <= to_address(1,2,0);
     s_writedata <= x"12131415";
     wait until falling_edge(s_waitrequest);
     s_write     <= '0';
