@@ -289,6 +289,8 @@ begin
     s_read      <= '0';
     report "Error count: " & integer'image(error_count);
     wait until rising_edge(clk);
+
+    Report "Testbench complete";
     
 end process;
 	
